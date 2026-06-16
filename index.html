@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Reel — Your Free Movie Assistant</title>
+
+<!-- iOS / PWA: launches full-screen with its own icon -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Reel">
+<meta name="theme-color" content="#0b0c10">
+<link rel="manifest" href="manifest.webmanifest">
+<!-- Inline SVG app icon (no extra file needed for Safari) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230b0c10'/%3E%3Ccircle cx='90' cy='90' r='52' fill='none' stroke='%23ff5436' stroke-width='10'/%3E%3Ccircle cx='90' cy='90' r='12' fill='%23ff5436'/%3E%3Ccircle cx='90' cy='48' r='9' fill='%23f6c453'/%3E%3Ccircle cx='90' cy='132' r='9' fill='%23f6c453'/%3E%3Ccircle cx='48' cy='90' r='9' fill='%23f6c453'/%3E%3Ccircle cx='132' cy='90' r='9' fill='%23f6c453'/%3E%3C/svg%3E">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root{
+    --ink:#0b0c10;--panel:#14161d;--panel-2:#1b1e27;--line:#282c37;
+    --txt:#ece9e1;--dim:#878c99;--accent:#ff5436;--accent-soft:#ff8a6b;--gold:#f6c453;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink);color:var(--txt);font-family:'Space Grotesk',sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  ::selection{background:var(--accent);color:#fff}
+
+  header{padding:44px 40px 26px;border-bottom:1px solid var(--line);max-width:1320px;margin:0 auto}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent-soft);margin-bottom:16px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(38px,6.5vw,76px);line-height:.94;letter-spacing:-.02em}
+  h1 em{font-style:italic;color:var(--accent)}
+  .sub{margin-top:16px;max-width:540px;color:var(--dim);font-size:15px}
+
+  .moods{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}
+  .mood{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer;transition:.16s;white-space:nowrap}
+  .mood:hover{color:var(--txt);border-color:var(--accent-soft)}
+  .mood.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .region-row{display:flex;align-items:center;gap:10px;margin-top:16px}
+  .region-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  #region{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 12px;cursor:pointer}
+  #region:focus{outline:2px solid var(--accent-soft);outline-offset:1px}
+
+  main{max-width:1320px;margin:0 auto;padding:30px 40px 50px}
+  .moodline{font-family:'Fraunces',serif;font-style:italic;font-size:clamp(22px,3.4vw,34px);margin-bottom:6px}
+  .moodline span{color:var(--accent)}
+  .moodnote{color:var(--dim);font-size:14px;margin-bottom:28px;max-width:640px}
+
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:20px;display:flex;flex-direction:column;gap:11px;transition:.2s;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);transform:scaleY(0);transform-origin:top;transition:.22s}
+  .card:hover{background:var(--panel-2);transform:translateY(-3px)}
+  .card:hover::before{transform:scaleY(1)}
+  .rank{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-soft)}
+  .ttl{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .ttl h3{font-family:'Fraunces',serif;font-weight:600;font-size:21px;line-height:1.05}
+  .yr{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+  .where{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink);background:var(--gold);padding:5px 11px;border-radius:3px;width:fit-content;text-decoration:none;font-weight:500;transition:.15s;cursor:pointer}
+  .where:hover{background:#ffd874;transform:translateX(2px)}
+  .where .go{opacity:.55}
+  .why{font-size:13.5px;color:var(--dim)}
+  .why b{color:var(--txt);font-weight:500}
+  .hint{font-size:11.5px;color:var(--dim);opacity:.8}
+  .hint b{color:var(--accent-soft);font-weight:500}
+  .url{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);margin-top:auto;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:7px;cursor:pointer;transition:.15s;word-break:break-all}
+  .url::before{content:"⧉";color:var(--accent-soft);font-size:13px;flex:0 0 auto}
+  .url:hover{color:var(--accent)}
+  .url.copied{color:var(--gold)}
+
+  .backup{margin-top:30px;background:var(--panel);border:1px dashed var(--line);border-radius:5px;padding:22px 24px}
+  .backup h4{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-soft);margin-bottom:12px}
+  .backup ul{list-style:none;display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+  .backup li{font-size:13.5px;color:var(--dim)}
+  .backup li b{color:var(--txt);font-weight:500}
+
+  footer{max-width:1320px;margin:0 auto;padding:30px 40px;border-top:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--dim);line-height:1.7}
+
+  @media(max-width:600px){header,main,footer{padding-left:20px;padding-right:20px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Movie Assistant · Free + Legal · Ad-supported</div>
+  <h1>What are we<br><em>watching</em> tonight?</h1>
+  <p class="sub">Pick a mood. Get 10 movies you can stream free right now, where to watch, why you'll like them, and backups when something's rotated off.</p>
+  <div class="moods" id="moods"></div>
+  <div class="region-row">
+    <span class="region-label">Check availability in:</span>
+    <select id="region">
+      <option value="in" selected>India</option>
+      <option value="us">United States</option>
+      <option value="gb">United Kingdom</option>
+      <option value="ca">Canada</option>
+      <option value="au">Australia</option>
+    </select>
+  </div>
+</header>
+
+<main>
+  <div class="moodline" id="moodline"></div>
+  <div class="moodnote" id="moodnote"></div>
+  <div class="grid" id="grid"></div>
+  <div class="backup">
+    <h4>Backup options — if a pick has rotated off</h4>
+    <ul id="backup"></ul>
+  </div>
+</main>
+
+<footer id="foot"></footer>
+
+<script>
+const DATA = {
+  action:{
+    label:"Action / Thrills",
+    line:"You want <span>adrenaline</span>. Stunts, chases, and people in serious trouble.",
+    note:"All ten are streaming free with ads right now on Tubi, Pluto TV, or YouTube. Catalogs rotate monthly, so if one's gone, grab a backup below.",
+    picks:[
+      {t:"Bullet Train",y:2022,w:"Tubi",u:"https://tubitv.com",why:"Brad Pitt on a runaway train full of assassins — stylish, funny, and relentlessly choreographed. The closest free pick to a John Wick night."},
+      {t:"The Rock",y:1996,w:"Pluto TV",u:"https://pluto.tv",why:"Peak Michael Bay 'Bayhem' with Connery and Cage storming Alcatraz. Big, loud, endlessly rewatchable."},
+      {t:"Jack Reacher",y:2012,w:"Pluto TV",u:"https://pluto.tv",why:"Tom Cruise as Lee Child's drifter-investigator. The opening sniper sequence alone is worth it."},
+      {t:"U.S. Marshals",y:1998,w:"Tubi",u:"https://tubitv.com",why:"A Fugitive spin-off built as one long relentless chase, with Tommy Lee Jones at his sharpest."},
+      {t:"Beverly Hills Cop",y:1984,w:"Pluto TV",u:"https://pluto.tv",why:"Eddie Murphy's defining action-comedy. If you want thrills with a grin, start here — the whole trilogy is free."},
+      {t:"48 Hrs.",y:1982,w:"Pluto TV",u:"https://pluto.tv",why:"The original mismatched-buddy-cop template. Murphy and Nolte set the gold standard everyone copied."},
+      {t:"Lone Wolf McQuade",y:1983,w:"Pluto TV",u:"https://pluto.tv",why:"The definitive Chuck Norris renegade-Ranger film — pure, unfiltered '80s action cool."},
+      {t:"Fist of Fury",y:1972,w:"Tubi",u:"https://tubitv.com",why:"Bruce Lee at his absolute peak. A foundational martial-arts film and still genuinely thrilling."},
+      {t:"Another 48 Hrs.",y:1990,w:"Pluto TV",u:"https://pluto.tv",why:"More Murphy-Nolte chemistry and bigger set pieces. Easy double-feature with the first one."},
+      {t:"Spider-Man: Homecoming",y:2017,w:"Pluto TV",u:"https://pluto.tv",why:"If you want lighter, high-flying superhero action, Holland's MCU debut is a small-scale, exciting ride."}
+    ],
+    backup:[
+      ["Taken","Tubi — Liam Neeson's 'particular set of skills' thriller"],
+      ["Transporter 3","Tubi — Jason Statham, all kinetic car chaos"],
+      ["The Fugitive","Pluto TV — the original, if U.S. Marshals is gone"],
+      ["Blue Beetle","Tubi — recent DC action when you want something newer"],
+      ["Any John Wayne western","Tubi — deep action-archive fallback"]
+    ]
+  },
+  funny:{
+    label:"Funny",
+    line:"You want to <span>laugh</span>. Nothing heavy, nothing sad.",
+    note:"Comedy rotates fast on free platforms — these are reliable staples on Tubi, Pluto TV, and YouTube. Backups cover you if one's off this month.",
+    picks:[
+      {t:"Office Space",y:1999,w:"Tubi",u:"https://tubitv.com",why:"The definitive workplace satire. Quotable end to end and somehow more relatable every year."},
+      {t:"Napoleon Dynamite",y:2004,w:"Pluto TV",u:"https://pluto.tv",why:"Deadpan absurdist comfort food. Low stakes, huge charm, zero stress."},
+      {t:"Airplane!",y:1980,w:"Tubi",u:"https://tubitv.com",why:"Joke-per-second spoof that basically invented the genre. Surely you'll like it."},
+      {t:"Hot Fuzz",y:2007,w:"Pluto TV",u:"https://pluto.tv",why:"Edgar Wright's action-comedy — sharp, fast, and rewards a rewatch for the setups."},
+      {t:"Super Troopers",y:2001,w:"Tubi",u:"https://tubitv.com",why:"Lazy-cops cult comedy. Pure dumb-fun energy, ideal background-laugh movie."},
+      {t:"Dumb and Dumber",y:1994,w:"Pluto TV",u:"https://pluto.tv",why:"Carrey and Daniels at peak slapstick. A no-thinking-required classic."},
+      {t:"The Naked Gun",y:1988,w:"Tubi",u:"https://tubitv.com",why:"Leslie Nielsen's deadpan masterpiece. Relentless sight gags that still land."},
+      {t:"Wayne's World",y:1992,w:"Pluto TV",u:"https://pluto.tv",why:"SNL's best film spin-off. Party on — endlessly good-natured."},
+      {t:"Bill & Ted's Excellent Adventure",y:1989,w:"Tubi",u:"https://tubitv.com",why:"Sweet, silly time-travel comedy. The most wholesome dumb fun on the list."},
+      {t:"Step Brothers",y:2008,w:"Pluto TV",u:"https://pluto.tv",why:"Ferrell and Reilly at maximum chaos. If you quote movies, this'll feed you for life."}
+    ],
+    backup:[
+      ["Anchorman","Pluto TV — Ferrell ensemble fallback"],
+      ["Caddyshack","Tubi — golf-comedy classic"],
+      ["Tcommando","Tubi — accidental comedy via over-the-top action"],
+      ["Mrs. Doubtfire","Tubi — Robin Williams crowd-pleaser"],
+      ["Any Mel Brooks film","Tubi — deep comedy archive"]
+    ]
+  },
+  scary:{
+    label:"Scary",
+    line:"You want to be <span>scared</span>. Lights off, volume up.",
+    note:"Horror is the strongest free-streaming genre — Tubi especially. These range from slow-dread to jump-scare. Backups cover rotation.",
+    picks:[
+      {t:"Hereditary",y:2018,w:"YouTube (Free w/ ads)",u:"https://www.youtube.com/movies",why:"Modern dread done right. Slow-burn family horror that genuinely unsettles."},
+      {t:"The Texas Chain Saw Massacre",y:1974,w:"Tubi",u:"https://tubitv.com",why:"Raw, grimy, foundational. Still one of the most relentless horror experiences ever made."},
+      {t:"Night of the Living Dead",y:1968,w:"Internet Archive",u:"https://archive.org",why:"Public-domain zombie original. Free everywhere and still tense and bleak."},
+      {t:"The Host",y:2006,w:"Tubi",u:"https://tubitv.com",why:"Bong Joon-ho's monster movie — scary, funny, and emotional all at once."},
+      {t:"Train to Busan",y:2016,w:"Tubi",u:"https://tubitv.com",why:"The best zombie film in years. Genuinely frightening and surprisingly moving."},
+      {t:"Insidious",y:2010,w:"Tubi",u:"https://tubitv.com",why:"James Wan jump-scare craftsmanship. Reliable lights-off terror."},
+      {t:"The Fly",y:1986,w:"Pluto TV",u:"https://pluto.tv",why:"Cronenberg body-horror with real heartbreak under the gore."},
+      {t:"Carnival of Souls",y:1962,w:"Internet Archive",u:"https://archive.org",why:"Public-domain dream-logic horror. Eerie, cheap, unforgettable."},
+      {t:"The Babadook",y:2014,w:"Tubi",u:"https://tubitv.com",why:"Grief as a monster. Smart, restrained, deeply creepy."},
+      {t:"Sinister",y:2012,w:"Tubi",u:"https://tubitv.com",why:"Reportedly one of the 'scientifically scariest' films. The home-movie reels will stay with you."}
+    ],
+    backup:[
+      ["The Blair Witch Project","Tubi — found-footage original"],
+      ["Nosferatu (1922)","Internet Archive — public-domain vampire classic"],
+      ["It Follows","Tubi — modern slow-dread"],
+      ["Phantasm","Tubi — cult surreal horror"],
+      ["Any Tubi 'Terror' channel","Pluto TV/Tubi — endless horror fallback"]
+    ]
+  },
+  feelgood:{
+    label:"Feel-good / Cozy",
+    line:"You want something <span>warm</span>. A soft landing.",
+    note:"Comfort movies that won't wreck you. Mostly Tubi and Pluto TV, with classics on the Internet Archive. Backups included.",
+    picks:[
+      {t:"Big",y:1988,w:"Tubi",u:"https://tubitv.com",why:"Tom Hanks at his most charming. Pure-hearted and endlessly cozy."},
+      {t:"Sleepless in Seattle",y:1993,w:"Pluto TV",u:"https://pluto.tv",why:"The gold-standard warm romance. Easy, gentle, satisfying."},
+      {t:"The Secret of Roan Inish",y:1994,w:"Tubi",u:"https://tubitv.com",why:"Quiet Irish folklore magic. A hidden cozy gem."},
+      {t:"Paddington",y:2014,w:"Tubi",u:"https://tubitv.com",why:"Genuinely one of the kindest films ever made. Works for any age, any mood."},
+      {t:"Chef",y:2014,w:"Pluto TV",u:"https://pluto.tv",why:"A food-and-family feel-good road trip. You'll leave hungry and happy."},
+      {t:"Roman Holiday",y:1953,w:"Internet Archive",u:"https://archive.org",why:"Hepburn and Peck in Rome. Black-and-white, breezy, timeless charm."},
+      {t:"School of Rock",y:2003,w:"Tubi",u:"https://tubitv.com",why:"Jack Black's most lovable role. Uplifting without trying too hard."},
+      {t:"My Neighbor Totoro–style picks",y:1988,w:"Check Tubi/library",u:"https://www.kanopy.com",why:"Gentle, wondrous animation. (Studio Ghibli often via Kanopy with a library card.)"},
+      {t:"The Princess Bride",y:1987,w:"Pluto TV",u:"https://pluto.tv",why:"Funny, romantic, adventurous comfort food. The universal crowd-pleaser."},
+      {t:"It's a Wonderful Life",y:1946,w:"Pluto TV",u:"https://pluto.tv",why:"The original warm-your-heart classic. Not just for December."}
+    ],
+    backup:[
+      ["Forrest Gump","Pluto TV — reliable feel-good staple"],
+      ["Julie & Julia","Tubi — cozy food + heart"],
+      ["Singin' in the Rain","Internet Archive / Tubi — joyful musical"],
+      ["Studio Ghibli via Kanopy","Library card — peak cozy"],
+      ["Any Hallmark-style channel","Pluto TV — endless gentle fallback"]
+    ]
+  },
+  mind:{
+    label:"Mind-bending",
+    line:"You want to be <span>puzzled</span>. Something to chew on.",
+    note:"Twisty, cerebral picks. A mix of Tubi, Pluto TV, and public-domain oddities. Backups for when one rotates out.",
+    picks:[
+      {t:"Primer",y:2004,w:"Tubi",u:"https://tubitv.com",why:"The most genuinely confusing time-travel film ever — by design. You'll want a diagram."},
+      {t:"Coherence",y:2013,w:"Tubi",u:"https://tubitv.com",why:"One dinner party, infinite realities. Low-budget, high-concept brilliance."},
+      {t:"Donnie Darko",y:2001,w:"Pluto TV",u:"https://pluto.tv",why:"Cult time-loop mystery that rewards obsessive rewatching."},
+      {t:"The Man from Earth",y:2007,w:"Tubi",u:"https://tubitv.com",why:"Almost entirely one conversation, and totally gripping. Pure idea-cinema."},
+      {t:"Cube",y:1997,w:"Tubi",u:"https://tubitv.com",why:"Strangers trapped in a deadly geometric puzzle. Tense and brain-teasing."},
+      {t:"Pi",y:1998,w:"Tubi",u:"https://tubitv.com",why:"Aronofsky's paranoid math-thriller. Black-and-white and relentless."},
+      {t:"Timecrimes",y:2007,w:"Tubi",u:"https://tubitv.com",why:"A tight Spanish time-loop thriller that clicks together perfectly."},
+      {t:"Predestination",y:2014,w:"Pluto TV",u:"https://pluto.tv",why:"A time-paradox story that folds in on itself beautifully."},
+      {t:"Memento-style noir picks",y:2000,w:"Check Tubi",u:"https://tubitv.com",why:"Reverse-chronology mind games. (Search Tubi's thriller rotation for Nolan-adjacent picks.)"},
+      {t:"Metropolis",y:1927,w:"Internet Archive",u:"https://archive.org",why:"Public-domain sci-fi landmark. Visually staggering and still thought-provoking."}
+    ],
+    backup:[
+      ["The Thirteenth Floor","Tubi — simulation-reality thriller"],
+      ["Triangle","Tubi — time-loop horror-puzzle"],
+      ["Dark City","Pluto TV — noir sci-fi mind-bender"],
+      ["Eraserhead","Internet Archive — surreal Lynch"],
+      ["Any Tubi 'Sci-Fi' channel","Pluto TV/Tubi — deep cerebral fallback"]
+    ]
+  }
+};
+
+const MOOD_ORDER=["action","funny","scary","feelgood","mind"];
+let current="action";
+
+const moodsEl=document.getElementById('moods');
+MOOD_ORDER.forEach(k=>{
+  const b=document.createElement('button');
+  b.className='mood'+(k===current?' active':'');
+  b.textContent=DATA[k].label;
+  b.onclick=()=>{current=k;render();[...moodsEl.children].forEach((c,i)=>c.classList.toggle('active',MOOD_ORDER[i]===k));window.scrollTo({top:0,behavior:'smooth'});};
+  moodsEl.appendChild(b);
+});
+
+function copyUrl(el,url){
+  const orig=el.dataset.disp;
+  const done=()=>{el.textContent='copied to clipboard';el.classList.add('copied');setTimeout(()=>{el.textContent=orig;el.classList.remove('copied');},1400);};
+  if(navigator.clipboard){navigator.clipboard.writeText(url).then(done).catch(()=>fallback());}else fallback();
+  function fallback(){const t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();done();}
+}
+
+let region='in'; // JustWatch region code — default India (Hyderabad). Toggleable.
+
+function searchUrl(p){
+  // JustWatch always reflects CURRENT free availability for the region.
+  // We bias to the title + year so the right film resolves.
+  const q=encodeURIComponent(p.t+' '+p.y);
+  return 'https://www.justwatch.com/'+region+'/search?q='+q;
+}
+
+function render(){
+  const d=DATA[current];
+  document.getElementById('moodline').innerHTML=d.line;
+  document.getElementById('moodnote').textContent=d.note;
+  const grid=document.getElementById('grid');grid.innerHTML='';
+  d.picks.forEach((p,i)=>{
+    const link=searchUrl(p);
+    const disp='justwatch.com/'+region+'/search · copy link';
+    const c=document.createElement('div');c.className='card';
+    c.innerHTML=`<div class="rank">${String(i+1).padStart(2,'0')}</div>
+      <div class="ttl"><h3>${p.t}</h3><span class="yr">${p.y}</span></div>
+      <a class="where" href="${link}" target="_blank" rel="noopener">▸ Find where to watch <span class="go">→</span></a>
+      <p class="why">${p.why}</p>
+      <div class="hint">Was free on <b>${p.w}</b> at build — JustWatch shows live availability</div>
+      <div class="url" data-disp="${disp}">${disp}</div>`;
+    const u=c.querySelector('.url');u.onclick=()=>copyUrl(u,link);
+    grid.appendChild(c);
+  });
+  const bu=document.getElementById('backup');bu.innerHTML='';
+  d.backup.forEach(([t,note])=>{const li=document.createElement('li');li.innerHTML=`<b>${t}</b> — ${note}`;bu.appendChild(li);});
+}
+
+document.getElementById('region').addEventListener('change',e=>{region=e.target.value;render();});
+
+document.getElementById('foot').innerHTML='REEL — free + legal movie assistant. Picks are mood-curated; clicking "Find where to watch" opens JustWatch, which shows live free + legal availability for your selected region (set to India by default). Because catalogs rotate, JustWatch is the source of truth — if a title is no longer free, it will show current options or you can use a backup. No piracy, ever. Curated June 2026.';
+
+render();
+
+// Offline support — caches the app after first visit (works on GitHub Pages HTTPS)
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
