@@ -126,18 +126,18 @@
 <div class="keymodal" id="keymodal">
   <div class="keybox">
     <h3>Enable live picks</h3>
-    <p>Pull real-time free movies for your region from Watchmode. One-time setup:</p>
+    <p>Live picks come through your own free Cloudflare Worker, which holds the Watchmode key securely. One-time setup:</p>
     <ol>
-      <li>Go to <b>api.watchmode.com/requestApiKey</b></li>
-      <li>Enter your email + pick <b>India</b> as a region — no card needed</li>
-      <li>Copy the API key they email you, paste it below.</li>
+      <li>Deploy the <b>reel-proxy</b> Worker (see the setup notes you were given)</li>
+      <li>Add your Watchmode key as the <b>WATCHMODE_KEY</b> secret</li>
+      <li>Paste your Worker URL below (e.g. https://reel-proxy.you.workers.dev)</li>
     </ol>
-    <input id="keyinput" type="text" placeholder="Paste your Watchmode API key" autocomplete="off" spellcheck="false">
+    <input id="keyinput" type="text" placeholder="https://reel-proxy.you.workers.dev" autocomplete="off" spellcheck="false">
     <div class="keybtns">
       <button class="ghost" onclick="closeKey()">Cancel</button>
       <button class="solid" onclick="saveKey()">Save & go live</button>
     </div>
-    <p class="keynote">No key? The app still works with curated picks.</p>
+    <p class="keynote">No Worker? The app still works with curated picks.</p>
   </div>
 </div>
 
@@ -309,30 +309,44 @@ const WM_GENRES={
   mind:'27,18'         // Science Fiction, Mystery
 };
 
-function getKey(){try{return localStorage.getItem('wm_key')||'';}catch(e){return '';}}
-function setKey(k){try{localStorage.setItem('wm_key',k);}catch(e){}}
+function getKey(){try{return localStorage.getItem('reel_proxy')||'';}catch(e){return '';}}
+function setKey(k){try{localStorage.setItem('reel_proxy',k);}catch(e){}}
 
 function justWatchUrl(title,year){
   return 'https://www.justwatch.com/'+region+'/search?q='+encodeURIComponent(title+' '+(year||''));
 }
 
 async function fetchLive(moodKey){
-  const key=getKey();
-  if(!key) throw new Error('no-key');
+  const proxy=getKey();
+  if(!proxy) throw new Error('no-proxy');
   const genres=WM_GENRES[moodKey];
-  const url='https://api.watchmode.com/v1/list-titles/'
-    +'?apiKey='+key
-    +'&genres='+genres
+  // We call OUR Cloudflare Worker — it injects the key + adds CORS headers.
+  const base=proxy.replace(/\/+$/,'');
+  const url=base
+    +'?genres='+genres
     +'&regions='+region.toUpperCase()
-    +'&source_types=free,sub_ads'  // free + ad-supported
+    +'&source_types=free'
     +'&types=movie'
     +'&sort_by=popularity_desc'
     +'&limit=12';
-  const r=await fetch(url);
-  if(!r.ok) throw new Error('http-'+r.status);
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),12000);
+  let r;
+  try{
+    r=await fetch(url,{signal:ctrl.signal});
+  }catch(e){
+    clearTimeout(timer);
+    throw new Error(e.name==='AbortError'?'timeout — check your Worker URL':'network-fail — check your Worker URL');
+  }
+  clearTimeout(timer);
+  if(!r.ok){
+    let detail='';
+    try{const ej=await r.json();detail=ej.statusMessage||ej.error||ej.message||'';}catch(_){}
+    throw new Error('http-'+r.status+(detail?(' · '+detail):''));
+  }
   const j=await r.json();
   const list=j.titles||j.results||[];
-  if(!list.length) throw new Error('empty');
+  if(!list.length) throw new Error('no free movies in this genre for '+region.toUpperCase());
   return list.slice(0,12).map(m=>({
     t:m.title,
     y:m.year||'',
