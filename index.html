@@ -41,6 +41,26 @@
   #region:focus{outline:2px solid var(--accent-soft);outline-offset:1px}
   .gear{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 13px;cursor:pointer;transition:.15s}
   .gear:hover{border-color:var(--gold);color:#ffe08a}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg-btn{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);background:var(--panel);border:none;padding:7px 13px;cursor:pointer;transition:.15s}
+  .seg-btn.active{background:var(--accent);color:#fff}
+  .seg-btn:not(.active):hover{color:var(--txt)}
+  .surprise{border-color:var(--accent-soft);color:var(--accent-soft)}
+  .surprise:hover{border-color:var(--accent);color:var(--accent)}
+  .listbtn{color:var(--accent-soft)}
+  #listcount{font-size:10px;opacity:.8}
+  .listbox{max-width:480px}
+  #listitems{max-height:300px;overflow-y:auto;margin:4px 0 8px}
+  .li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .li a{flex:1;color:var(--txt);text-decoration:none;font-family:'Fraunces',serif;font-size:16px}
+  .li a:hover{color:var(--accent)}
+  .li .liyr{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
+  .li .lidel{background:none;border:none;color:var(--dim);cursor:pointer;font-size:15px;padding:2px 6px}
+  .li .lidel:hover{color:var(--accent)}
+  .li-empty{color:var(--dim);font-size:13px;padding:14px 0}
+  .save{position:absolute;top:10px;right:10px;z-index:3;background:rgba(8,9,12,.6);border:1px solid rgba(255,255,255,.18);color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;transition:.15s;display:flex;align-items:center;justify-content:center}
+  .save:hover{background:var(--accent);border-color:var(--accent)}
+  .save.saved{background:var(--accent);border-color:var(--accent)}
   .link-btn{background:none;border:none;color:var(--accent-soft);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;padding:0;text-decoration:underline}
   .loading{grid-column:1/-1;text-align:center;padding:50px 0;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:13px;animation:pulse 1.2s infinite}
   @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
@@ -142,7 +162,13 @@
       <option value="ca">Canada</option>
       <option value="au">Australia</option>
     </select>
+    <div class="seg" id="typeseg">
+      <button class="seg-btn active" data-type="movie">Movies</button>
+      <button class="seg-btn" data-type="tv_series">TV Shows</button>
+    </div>
+    <button class="gear surprise" onclick="surprise()" title="Pick something at random">🎲 Surprise me</button>
     <button class="gear" onclick="openKey()" title="Enable live picks">⚙ Live</button>
+    <button class="gear listbtn" onclick="openList()" title="Your saved picks">♥ My List <span id="listcount"></span></button>
   </div>
 </header>
 
@@ -161,6 +187,18 @@
       <button class="solid" onclick="saveKey()">Save & go live</button>
     </div>
     <p class="keynote">No Worker? The app still works with curated picks.</p>
+  </div>
+</div>
+
+<div class="keymodal" id="listmodal">
+  <div class="keybox listbox">
+    <h3>♥ My List</h3>
+    <p>Saved on this device. Tap a title to find where to watch.</p>
+    <div id="listitems"></div>
+    <div class="keybtns">
+      <button class="ghost" onclick="closeList()">Close</button>
+      <button class="solid" onclick="clearList()">Clear all</button>
+    </div>
   </div>
 </div>
 
@@ -302,6 +340,7 @@ const DATA = {
 
 const MOOD_ORDER=["action","funny","scary","feelgood","mind"];
 let current="action";
+let contentType="movie"; // 'movie' or 'tv_series'
 
 const moodsEl=document.getElementById('moods');
 MOOD_ORDER.forEach(k=>{
@@ -310,6 +349,15 @@ MOOD_ORDER.forEach(k=>{
   b.textContent=DATA[k].label;
   b.onclick=()=>{current=k;render();[...moodsEl.children].forEach((c,i)=>c.classList.toggle('active',MOOD_ORDER[i]===k));window.scrollTo({top:0,behavior:'smooth'});};
   moodsEl.appendChild(b);
+});
+
+// Movies / TV toggle
+document.querySelectorAll('#typeseg .seg-btn').forEach(btn=>{
+  btn.onclick=()=>{
+    contentType=btn.dataset.type;
+    document.querySelectorAll('#typeseg .seg-btn').forEach(b=>b.classList.toggle('active',b===btn));
+    render();
+  };
 });
 
 function copyUrl(el,url){
@@ -349,7 +397,7 @@ async function fetchLive(moodKey){
     +'?genres='+genres
     +'&regions='+region.toUpperCase()
     +'&source_types=free'
-    +'&types=movie'
+    +'&types='+contentType
     +'&sort_by=popularity_desc'
     +'&limit=12';
   const ctrl=new AbortController();
@@ -388,7 +436,9 @@ function cardHTML(p,i,live){
       ? `<div class="art" style="background-image:url('${p.poster}')"></div>`
       : `<div class="art noart"><span>${initials||'★'}</span></div>`;
     const rating=p.rating?`<span class="rate">★ ${p.rating}</span>`:'';
-    return `${art}
+    const saved=isSaved(p)?' saved':'';
+    return `<button class="save${saved}" title="Save to My List">♥</button>
+      ${art}
       <div class="shade"></div>
       <div class="meta">
         <div class="meta-top">${rating}<span class="livedot" title="Live from Watchmode">● live</span></div>
@@ -414,6 +464,10 @@ function paint(picks,live){
     const c=document.createElement('div');c.className=live?'pcard':'card';
     c.innerHTML=cardHTML(p,i,live);
     if(!live){const u=c.querySelector('.url');if(u)u.onclick=()=>copyUrl(u,u.dataset.link);}
+    if(live){
+      const sv=c.querySelector('.save');
+      if(sv)sv.onclick=(e)=>{e.stopPropagation();toggleSave(p);sv.classList.toggle('saved',isSaved(p));};
+    }
     grid.appendChild(c);
   });
 }
@@ -426,11 +480,12 @@ async function render(){
   d.backup.forEach(([t,note])=>{const li=document.createElement('li');li.innerHTML=`<b>${t}</b> — ${note}`;bu.appendChild(li);});
 
   if(getKey()){
-    document.getElementById('moodnote').innerHTML='Pulling live free + ad-supported titles for '+region.toUpperCase()+'…';
+    const noun=contentType==='tv_series'?'shows':'movies';
+    document.getElementById('moodnote').innerHTML='Pulling live free + ad-supported '+noun+' for '+region.toUpperCase()+'…';
     grid.innerHTML='<div class="loading">Loading live picks…</div>';
     try{
       const picks=await fetchLive(current);
-      document.getElementById('moodnote').innerHTML='Live picks — currently free or ad-supported in '+region.toUpperCase()+', updated daily by Watchmode.';
+      document.getElementById('moodnote').innerHTML='Live picks — '+noun+' currently free or ad-supported in '+region.toUpperCase()+', updated daily by Watchmode.';
       paint(picks,true);
       return;
     }catch(err){
@@ -448,10 +503,60 @@ function openKey(){document.getElementById('keymodal').classList.add('show');doc
 function closeKey(){document.getElementById('keymodal').classList.remove('show');}
 function saveKey(){const v=document.getElementById('keyinput').value.trim();setKey(v);closeKey();render();}
 
+// ---- Watchlist (saved on this device) ----
+function getList(){try{return JSON.parse(localStorage.getItem('reel_list')||'[]');}catch(e){return [];}}
+function putList(a){try{localStorage.setItem('reel_list',JSON.stringify(a));}catch(e){}updateListCount();}
+function keyOf(p){return (p.t+'|'+(p.y||'')).toLowerCase();}
+function isSaved(p){return getList().some(x=>keyOf(x)===keyOf(p));}
+function toggleSave(p){
+  let a=getList();
+  if(a.some(x=>keyOf(x)===keyOf(p))){a=a.filter(x=>keyOf(x)!==keyOf(p));}
+  else{a.unshift({t:p.t,y:p.y||'',type:contentType});}
+  putList(a);
+}
+function clearList(){putList([]);renderList();}
+function updateListCount(){const n=getList().length;document.getElementById('listcount').textContent=n?('('+n+')'):'';}
+function openList(){renderList();document.getElementById('listmodal').classList.add('show');}
+function closeList(){document.getElementById('listmodal').classList.remove('show');}
+function renderList(){
+  const box=document.getElementById('listitems');
+  const a=getList();
+  if(!a.length){box.innerHTML='<div class="li-empty">No saved titles yet. Tap ♥ on any poster to add it here.</div>';return;}
+  box.innerHTML='';
+  a.forEach(p=>{
+    const row=document.createElement('div');row.className='li';
+    const link=justWatchUrl(p.t,p.y);
+    row.innerHTML=`<a href="${link}" target="_blank" rel="noopener">${p.t}</a><span class="liyr">${p.y||''}</span><button class="lidel" title="Remove">✕</button>`;
+    row.querySelector('.lidel').onclick=()=>{toggleSave(p);renderList();
+      // refresh any matching heart on the page
+      render();};
+    box.appendChild(row);
+  });
+}
+
+// ---- Surprise me ----
+async function surprise(){
+  const k=MOOD_ORDER[Math.floor(Math.random()*MOOD_ORDER.length)];
+  current=k;
+  [...moodsEl.children].forEach((c,i)=>c.classList.toggle('active',MOOD_ORDER[i]===k));
+  window.scrollTo({top:0,behavior:'smooth'});
+  await render();
+  // highlight one random card
+  const cards=document.querySelectorAll('#grid .pcard, #grid .card');
+  if(cards.length){
+    const pick=cards[Math.floor(Math.random()*cards.length)];
+    pick.scrollIntoView({behavior:'smooth',block:'center'});
+    pick.style.outline='3px solid var(--accent)';
+    pick.style.outlineOffset='2px';
+    setTimeout(()=>{pick.style.outline='';},2200);
+  }
+}
+
 document.getElementById('region').addEventListener('change',e=>{region=e.target.value;render();});
 
-document.getElementById('foot').innerHTML='REEL — free + legal movie assistant. With a free Watchmode key, picks are pulled LIVE: actual free + ad-supported movies in your region, updated daily. Without a key, curated June-2026 picks show as a fallback. Clicking a title opens JustWatch to confirm where it streams. No piracy, ever.';
+document.getElementById('foot').innerHTML='REEL — free + legal movie assistant. With a free Watchmode key, picks are pulled LIVE: actual free + ad-supported movies and shows in your region, updated daily. Without a key, curated June-2026 picks show as a fallback. Clicking a title opens JustWatch to confirm where it streams. Your saved list lives only on this device. No piracy, ever.';
 
+updateListCount();
 render();
 
 // Offline support
