@@ -42,6 +42,18 @@ The API key never lives in this repo or on the phone — only as a Cloudflare se
 
 ---
 
+## Features
+
+- **Mood picks** — five moods (Action/Thrills, Funny, Scary, Feel-good/Cozy, Mind-bending), each mapped to genres.
+- **Movies / TV Shows toggle** — switch between free movies and free series for the same mood and region.
+- **🎲 Surprise me** — picks a random mood, loads it live, and highlights one random title.
+- **♥ My List** — save titles with the heart button on any poster; view them in the My List panel. Saved locally on the device (no cross-device sync).
+- **Region switch** — India by default; switchable to US / UK / CA / AU.
+- **Live availability** — each title links to JustWatch to confirm where it streams now.
+- **Curated fallback** — if live data can't load, a built-in list shows instead, with the reason in the note line, so it's never blank.
+
+---
+
 ## Updating
 
 - **Change how the app looks/behaves** → edit `index.html`, commit, wait ~1 min for
