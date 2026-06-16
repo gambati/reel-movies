@@ -72,6 +72,29 @@
   .moodnote{color:var(--dim);font-size:14px;margin-bottom:28px;max-width:640px}
 
   .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  /* poster wall (live mode) */
+  .grid.posters{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+  .pcard{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--panel-2);cursor:default;border:1px solid var(--line);transition:transform .22s,box-shadow .22s}
+  .pcard:hover{transform:translateY(-5px) scale(1.015);box-shadow:0 16px 40px rgba(0,0,0,.55)}
+  .pcard .art{position:absolute;inset:0;background-size:cover;background-position:center;transition:transform .4s}
+  .pcard:hover .art{transform:scale(1.06)}
+  .pcard .art.noart{display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,var(--panel-2),#0f1117)}
+  .pcard .art.noart span{font-family:'Fraunces',serif;font-size:48px;font-weight:900;color:var(--accent);opacity:.5}
+  .pcard .shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(8,9,12,.96) 0%,rgba(8,9,12,.78) 24%,rgba(8,9,12,.12) 52%,rgba(8,9,12,0) 70%);transition:background .25s}
+  .pcard:hover .shade{background:linear-gradient(to top,rgba(8,9,12,.98) 0%,rgba(8,9,12,.9) 45%,rgba(8,9,12,.55) 100%)}
+  .pcard .meta{position:absolute;left:0;right:0;bottom:0;padding:14px;display:flex;flex-direction:column;gap:3px}
+  .pcard .meta-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .pcard .rate{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gold);background:rgba(0,0,0,.4);padding:2px 7px;border-radius:3px}
+  .pcard .livedot{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent-soft);letter-spacing:.06em}
+  .pcard h3{font-family:'Fraunces',serif;font-weight:600;font-size:18px;line-height:1.1;color:#fff}
+  .pcard .yr{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
+  .pcard .ov{font-size:12px;color:#cfd2da;line-height:1.4;margin-top:6px;max-height:0;opacity:0;overflow:hidden;transition:max-height .3s,opacity .3s,margin .3s;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
+  .pcard:hover .ov{max-height:90px;opacity:1}
+  .pcard .where{margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-soft);text-decoration:none;max-height:0;opacity:0;overflow:hidden;transition:.3s}
+  .pcard:hover .where{max-height:30px;opacity:1}
+  .pcard .where:hover{color:var(--accent)}
+  /* always show title; tap reveals on touch via :active for no-hover devices */
+  @media(hover:none){.pcard .ov,.pcard .where{max-height:90px;opacity:1}.pcard .shade{background:linear-gradient(to top,rgba(8,9,12,.97) 0%,rgba(8,9,12,.8) 55%,rgba(8,9,12,.2) 100%)}}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:20px;display:flex;flex-direction:column;gap:11px;transition:.2s;position:relative;overflow:hidden}
   .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);transform:scaleY(0);transform-origin:top;transition:.22s}
   .card:hover{background:var(--panel-2);transform:translateY(-3px)}
@@ -350,37 +373,47 @@ async function fetchLive(moodKey){
   return list.slice(0,12).map(m=>({
     t:m.title,
     y:m.year||'',
-    rating:null,
-    poster:null,
-    why:m.plot_overview||('A '+moodKey+' pick currently free or ad-supported in '+region.toUpperCase()+'.')
+    rating:m.user_rating?Number(m.user_rating).toFixed(1):(m.critic_score||null),
+    poster:m.poster||m.backdrop||null,
+    why:m.overview||('A '+moodKey+' pick currently free or ad-supported in '+region.toUpperCase()+'.')
   }));
 }
 
 // ---- Renderers ----
 function cardHTML(p,i,live){
   const link=justWatchUrl(p.t,p.y);
-  const poster=live&&p.poster
-    ? `<div class="poster" style="background-image:url('${p.poster}')"></div>`
-    : '';
-  const rating=live&&p.rating?`<span class="rate">★ ${p.rating}</span>`:'';
-  const hint=live
-    ? `<div class="hint live">● Live from Watchmode · free/ads in ${region.toUpperCase()}</div>`
-    : `<div class="hint">Was free on <b>${p.w}</b> at build — JustWatch shows live availability</div>`;
+  if(live){
+    const initials=p.t.replace(/[^A-Za-z0-9 ]/g,'').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const art=p.poster
+      ? `<div class="art" style="background-image:url('${p.poster}')"></div>`
+      : `<div class="art noart"><span>${initials||'★'}</span></div>`;
+    const rating=p.rating?`<span class="rate">★ ${p.rating}</span>`:'';
+    return `${art}
+      <div class="shade"></div>
+      <div class="meta">
+        <div class="meta-top">${rating}<span class="livedot" title="Live from Watchmode">● live</span></div>
+        <h3>${p.t}</h3>
+        <span class="yr">${p.y||''}</span>
+        <p class="ov">${p.why}</p>
+        <a class="where" href="${link}" target="_blank" rel="noopener">Find where to watch →</a>
+      </div>`;
+  }
+  // curated fallback (no poster) keeps the original readable layout
   return `<div class="rank">${String(i+1).padStart(2,'0')}</div>
-    ${poster}
-    <div class="ttl"><h3>${p.t}</h3><span class="yr">${p.y||''}</span>${rating}</div>
+    <div class="ttl"><h3>${p.t}</h3><span class="yr">${p.y||''}</span></div>
     <a class="where" href="${link}" target="_blank" rel="noopener">▸ Find where to watch <span class="go">→</span></a>
     <p class="why">${p.why}</p>
-    ${hint}
+    <div class="hint">Was free on <b>${p.w}</b> at build — JustWatch shows live availability</div>
     <div class="url" data-link="${link}">justwatch.com/${region}/search · copy link</div>`;
 }
 
 function paint(picks,live){
   const grid=document.getElementById('grid');grid.innerHTML='';
+  grid.className=live?'grid posters':'grid';
   picks.forEach((p,i)=>{
-    const c=document.createElement('div');c.className='card'+(live&&p.poster?' has-poster':'');
+    const c=document.createElement('div');c.className=live?'pcard':'card';
     c.innerHTML=cardHTML(p,i,live);
-    const u=c.querySelector('.url');u.onclick=()=>copyUrl(u,u.dataset.link);
+    if(!live){const u=c.querySelector('.url');if(u)u.onclick=()=>copyUrl(u,u.dataset.link);}
     grid.appendChild(c);
   });
 }
