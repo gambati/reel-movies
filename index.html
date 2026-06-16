@@ -39,6 +39,32 @@
   .region-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
   #region{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--txt);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 12px;cursor:pointer}
   #region:focus{outline:2px solid var(--accent-soft);outline-offset:1px}
+  .gear{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 13px;cursor:pointer;transition:.15s}
+  .gear:hover{border-color:var(--gold);color:#ffe08a}
+  .link-btn{background:none;border:none;color:var(--accent-soft);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;padding:0;text-decoration:underline}
+  .loading{grid-column:1/-1;text-align:center;padding:50px 0;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:13px;animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .poster{width:100%;aspect-ratio:2/3;background-size:cover;background-position:center;border-radius:4px;margin-bottom:4px;background-color:var(--panel-2)}
+  .rate{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);margin-left:auto}
+  .hint.live{color:var(--accent-soft);opacity:1}
+  .hint.live b{color:var(--accent-soft)}
+  /* modal */
+  .keymodal{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .keymodal.show{display:flex}
+  .keybox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px;max-width:420px;width:100%}
+  .keybox h3{font-family:'Fraunces',serif;font-size:24px;margin-bottom:8px}
+  .keybox p{color:var(--dim);font-size:13.5px;margin-bottom:12px}
+  .keybox ol{color:var(--dim);font-size:13px;margin:0 0 16px 18px;display:grid;gap:6px}
+  .keybox ol b{color:var(--txt)}
+  #keyinput{width:100%;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--txt);background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:11px 13px;margin-bottom:14px}
+  #keyinput:focus{outline:2px solid var(--accent-soft)}
+  .keybtns{display:flex;gap:10px}
+  .keybtns button{flex:1;font-family:'JetBrains Mono',monospace;font-size:13px;padding:11px;border-radius:6px;cursor:pointer;border:1px solid var(--line)}
+  .ghost{background:transparent;color:var(--dim)}
+  .ghost:hover{color:var(--txt)}
+  .solid{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:500}
+  .solid:hover{background:#ff6a50}
+  .keynote{margin-top:14px;font-size:12px;text-align:center}
 
   main{max-width:1320px;margin:0 auto;padding:30px 40px 50px}
   .moodline{font-family:'Fraunces',serif;font-style:italic;font-size:clamp(22px,3.4vw,34px);margin-bottom:6px}
@@ -93,8 +119,27 @@
       <option value="ca">Canada</option>
       <option value="au">Australia</option>
     </select>
+    <button class="gear" onclick="openKey()" title="Enable live picks">⚙ Live</button>
   </div>
 </header>
+
+<div class="keymodal" id="keymodal">
+  <div class="keybox">
+    <h3>Enable live picks</h3>
+    <p>Pull real-time free movies for your region from Watchmode. One-time setup:</p>
+    <ol>
+      <li>Go to <b>api.watchmode.com/requestApiKey</b></li>
+      <li>Enter your email + pick <b>India</b> as a region — no card needed</li>
+      <li>Copy the API key they email you, paste it below.</li>
+    </ol>
+    <input id="keyinput" type="text" placeholder="Paste your Watchmode API key" autocomplete="off" spellcheck="false">
+    <div class="keybtns">
+      <button class="ghost" onclick="closeKey()">Cancel</button>
+      <button class="solid" onclick="saveKey()">Save & go live</button>
+    </div>
+    <p class="keynote">No key? The app still works with curated picks.</p>
+  </div>
+</div>
 
 <main>
   <div class="moodline" id="moodline"></div>
@@ -251,48 +296,120 @@ function copyUrl(el,url){
   function fallback(){const t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();done();}
 }
 
-let region='in'; // JustWatch region code — default India (Hyderabad). Toggleable.
+let region='in'; // watch region — default India.
 
-function searchUrl(p){
-  // JustWatch always reflects CURRENT free availability for the region.
-  // We bias to the title + year so the right film resolves.
-  const q=encodeURIComponent(p.t+' '+p.y);
-  return 'https://www.justwatch.com/'+region+'/search?q='+q;
+// ---- Watchmode config ----
+// Watchmode has its own genre IDs. We pull LIVE free + ad-supported titles
+// for the chosen genres and region. Free tier = 2500 calls, up to 3 countries.
+const WM_GENRES={
+  action:'1,33',       // Action, Thriller
+  funny:'4',           // Comedy
+  scary:'11',          // Horror
+  feelgood:'10,22,8',  // Family, Romance, Drama
+  mind:'27,18'         // Science Fiction, Mystery
+};
+
+function getKey(){try{return localStorage.getItem('wm_key')||'';}catch(e){return '';}}
+function setKey(k){try{localStorage.setItem('wm_key',k);}catch(e){}}
+
+function justWatchUrl(title,year){
+  return 'https://www.justwatch.com/'+region+'/search?q='+encodeURIComponent(title+' '+(year||''));
 }
 
-function render(){
-  const d=DATA[current];
-  document.getElementById('moodline').innerHTML=d.line;
-  document.getElementById('moodnote').textContent=d.note;
+async function fetchLive(moodKey){
+  const key=getKey();
+  if(!key) throw new Error('no-key');
+  const genres=WM_GENRES[moodKey];
+  const url='https://api.watchmode.com/v1/list-titles/'
+    +'?apiKey='+key
+    +'&genres='+genres
+    +'&regions='+region.toUpperCase()
+    +'&source_types=free,sub_ads'  // free + ad-supported
+    +'&types=movie'
+    +'&sort_by=popularity_desc'
+    +'&limit=12';
+  const r=await fetch(url);
+  if(!r.ok) throw new Error('http-'+r.status);
+  const j=await r.json();
+  const list=j.titles||j.results||[];
+  if(!list.length) throw new Error('empty');
+  return list.slice(0,12).map(m=>({
+    t:m.title,
+    y:m.year||'',
+    rating:null,
+    poster:null,
+    why:m.plot_overview||('A '+moodKey+' pick currently free or ad-supported in '+region.toUpperCase()+'.')
+  }));
+}
+
+// ---- Renderers ----
+function cardHTML(p,i,live){
+  const link=justWatchUrl(p.t,p.y);
+  const poster=live&&p.poster
+    ? `<div class="poster" style="background-image:url('${p.poster}')"></div>`
+    : '';
+  const rating=live&&p.rating?`<span class="rate">★ ${p.rating}</span>`:'';
+  const hint=live
+    ? `<div class="hint live">● Live from Watchmode · free/ads in ${region.toUpperCase()}</div>`
+    : `<div class="hint">Was free on <b>${p.w}</b> at build — JustWatch shows live availability</div>`;
+  return `<div class="rank">${String(i+1).padStart(2,'0')}</div>
+    ${poster}
+    <div class="ttl"><h3>${p.t}</h3><span class="yr">${p.y||''}</span>${rating}</div>
+    <a class="where" href="${link}" target="_blank" rel="noopener">▸ Find where to watch <span class="go">→</span></a>
+    <p class="why">${p.why}</p>
+    ${hint}
+    <div class="url" data-link="${link}">justwatch.com/${region}/search · copy link</div>`;
+}
+
+function paint(picks,live){
   const grid=document.getElementById('grid');grid.innerHTML='';
-  d.picks.forEach((p,i)=>{
-    const link=searchUrl(p);
-    const disp='justwatch.com/'+region+'/search · copy link';
-    const c=document.createElement('div');c.className='card';
-    c.innerHTML=`<div class="rank">${String(i+1).padStart(2,'0')}</div>
-      <div class="ttl"><h3>${p.t}</h3><span class="yr">${p.y}</span></div>
-      <a class="where" href="${link}" target="_blank" rel="noopener">▸ Find where to watch <span class="go">→</span></a>
-      <p class="why">${p.why}</p>
-      <div class="hint">Was free on <b>${p.w}</b> at build — JustWatch shows live availability</div>
-      <div class="url" data-disp="${disp}">${disp}</div>`;
-    const u=c.querySelector('.url');u.onclick=()=>copyUrl(u,link);
+  picks.forEach((p,i)=>{
+    const c=document.createElement('div');c.className='card'+(live&&p.poster?' has-poster':'');
+    c.innerHTML=cardHTML(p,i,live);
+    const u=c.querySelector('.url');u.onclick=()=>copyUrl(u,u.dataset.link);
     grid.appendChild(c);
   });
+}
+
+async function render(){
+  const d=DATA[current];
+  document.getElementById('moodline').innerHTML=d.line;
+  const grid=document.getElementById('grid');
   const bu=document.getElementById('backup');bu.innerHTML='';
   d.backup.forEach(([t,note])=>{const li=document.createElement('li');li.innerHTML=`<b>${t}</b> — ${note}`;bu.appendChild(li);});
+
+  if(getKey()){
+    document.getElementById('moodnote').innerHTML='Pulling live free + ad-supported titles for '+region.toUpperCase()+'…';
+    grid.innerHTML='<div class="loading">Loading live picks…</div>';
+    try{
+      const picks=await fetchLive(current);
+      document.getElementById('moodnote').innerHTML='Live picks — currently free or ad-supported in '+region.toUpperCase()+', updated daily by Watchmode.';
+      paint(picks,true);
+      return;
+    }catch(err){
+      document.getElementById('moodnote').innerHTML='Couldn\'t load live data ('+err.message+'). Showing curated picks — tap ⚙ to check your key.';
+      paint(d.picks,false);
+      return;
+    }
+  }
+  document.getElementById('moodnote').innerHTML=d.note+' <button class="link-btn" onclick="openKey()">Enable live picks →</button>';
+  paint(d.picks,false);
 }
+
+// ---- API key panel ----
+function openKey(){document.getElementById('keymodal').classList.add('show');document.getElementById('keyinput').value=getKey();}
+function closeKey(){document.getElementById('keymodal').classList.remove('show');}
+function saveKey(){const v=document.getElementById('keyinput').value.trim();setKey(v);closeKey();render();}
 
 document.getElementById('region').addEventListener('change',e=>{region=e.target.value;render();});
 
-document.getElementById('foot').innerHTML='REEL — free + legal movie assistant. Picks are mood-curated; clicking "Find where to watch" opens JustWatch, which shows live free + legal availability for your selected region (set to India by default). Because catalogs rotate, JustWatch is the source of truth — if a title is no longer free, it will show current options or you can use a backup. No piracy, ever. Curated June 2026.';
+document.getElementById('foot').innerHTML='REEL — free + legal movie assistant. With a free Watchmode key, picks are pulled LIVE: actual free + ad-supported movies in your region, updated daily. Without a key, curated June-2026 picks show as a fallback. Clicking a title opens JustWatch to confirm where it streams. No piracy, ever.';
 
 render();
 
-// Offline support — caches the app after first visit (works on GitHub Pages HTTPS)
+// Offline support
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
 }
 </script>
 </body>
